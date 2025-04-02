@@ -42,6 +42,32 @@ function Get-IntuneODC {
                 return
             }
         }
+
+        #- Create the bin directory if it doesn't exist
+        $binPath = Join-Path -Path $AssetsPath -ChildPath "bin"
+        if (-not (Test-Path -Path $binPath -ErrorAction SilentlyContinue)) {
+            try {
+                New-Item -Path $binPath -ItemType Directory -ErrorAction Stop
+                Write-Verbose "Created directory: $binPath"
+            }
+            catch {
+                Write-Error "Failed to create directory '$binPath'. Error: $_"
+                return
+            }
+        }
+        Else {
+            Write-Verbose "Directory already exists: $binPath"
+
+            #- Clear the bin directory if it exists
+            try {
+                Get-ChildItem -Path $binPath | Remove-Item -Force -Recurse -ErrorAction Stop
+                Write-Verbose "Cleared directory: $binPath"
+            }
+            catch {
+                Write-Error "Failed to clear directory '$binPath'. Error: $_"
+                return
+            }
+        }
     }
     Process {
         #- Loop through the URLs and download each file to the specified path
