@@ -36,8 +36,37 @@ function Invoke-IntuneODCTool {
         Write-Verbose "Executing Intune ODC Tool at '$odcToolPath'..."
         try {
             # Start the Intune ODC tool with PowerShell 5
-            Start-Process -FilePath $powershellPath -ArgumentList "-NoProfile -NoLogo -ExecutionPolicy Bypass -File ""$odcToolPath""" -NoNewWindow -Wait -ErrorAction Stop -RedirectStandardOutput $LogFilePath -RedirectStandardError $LogFilePath
+            #Start-Process -FilePath $powershellPath -ArgumentList "-NoProfile -NoLogo -ExecutionPolicy Bypass -File ""$odcToolPath""" -NoNewWindow -Wait -ErrorAction Stop 2>&1> $LogFilePath
+            $parameters = @{
+                FilePath  = $odcToolPath
+                PSVersion = 5.1 # <-- remove this line for PS7
+            }
+
+            # Set the timeout for the job in seconds (15 minutes)
+            $timeoutSec = 900
+            $job = Start-Job @parameters
+            $job.ChildJobs[0].Output
+            $index = $job.ChildJobs[0].Output.Count
+
+            while ($job.JobStateInfo.State -eq [System.Management.Automation.JobState]::Running) {
+                Start-Sleep -Milliseconds 200
+                $job.ChildJobs[0].Output[$index]
+                $index = $job.ChildJobs[0].Output.Count
+                if (([DateTime]::Now - $job.PSBeginTime).TotalSeconds -gt $timeoutSec) {
+                    throw "Job timed out."
+                }
+            }
             Write-Verbose "Output and errors are being logged to '$LogFilePath'."
+
+            #- Wait for the job to complete and capture the output into the log file
+            try {
+                Write-Verbose "Writing output to log file '$LogFilePath'..."
+                $job.ChildJobs[0].Output | Out-File -FilePath $LogFilePath -Append -ErrorAction Stop
+            }
+            catch {
+                Write-Error "Failed to write output to log file '$LogFilePath'. Error: $_"
+                throw
+            }
         }
         catch {
             Write-Error "Failed to execute the Intune ODC tool. Error: $_"
